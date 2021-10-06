@@ -1,5 +1,5 @@
 certifi==2019.6.16
-conda==4.10.3
+conda==4.3.16
 Cython==0.29.12
 decorator==4.4.0
 docutils==0.14
