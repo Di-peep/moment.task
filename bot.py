@@ -1,8 +1,13 @@
-import telebot
-from telebot import types
-import time
+from validator import check_name, check_age
+from all_markup import *
 
+
+# release
+# token = ''
+
+# test token
 token = ''
+
 
 bot = telebot.TeleBot(token)
 
@@ -14,6 +19,7 @@ class User:
         self.name = None
         self.age = None
         self.sex = None
+        self.step = 0
 
     def add_name(self, name):
         self.name = name
@@ -25,21 +31,17 @@ class User:
         self.sex = sex
 
 
-def check_name(text):
-    return text.isalpha() and 2 < len(text) < 20
-
-
-def check_age(num):
-    return num.isdigit() and 3 < int(num) < 100
-
-
 @bot.message_handler(commands=['start'])
 def start_registration(message):
     chat_id = message.chat.id
-    users[chat_id] = User()
 
-    msg = bot.send_message(chat_id, "Введіть своє ім'я:")
-    bot.register_next_step_handler(msg, reg_name)
+    if chat_id in users:
+        bot.send_message(chat_id, "Ви уже зареєстровані!", reply_markup=main_menu_markup())
+    else:
+        users[chat_id] = User()
+
+        msg = bot.send_message(chat_id, "Введіть своє ім'я:")
+        bot.register_next_step_handler(msg, reg_name)
 
 
 def reg_name(message):
@@ -74,31 +76,16 @@ def callback_query(call):
         reg_end(chat_id)
 
 
-def gen_markup_sex():
-    markup = types.InlineKeyboardMarkup()
-    male = types.InlineKeyboardButton(text='🚹', callback_data='1')
-    female = types.InlineKeyboardButton(text='🚺', callback_data='0')
-    markup.row(male, female)
-    return markup
-
-
 def reg_age(message):
     chat_id = message.chat.id
     user = users[chat_id]
 
     if check_age(message.text):
         user.add_age(message.text)
-        bot.send_message(chat_id, "Ваша стать?", reply_markup=gen_markup_sex())
+        bot.send_message(chat_id, "Ваша стать?", reply_markup=gen_sex_markup())
     else:
         msg = bot.reply_to(message, "Будь ласка, введіть коректний вік:")
         bot.register_next_step_handler(msg, reg_age)
-
-
-def main_menu_markup():
-    menu_markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=False)
-    menu_markup.row('/about_me')
-    menu_markup.row('/settings')
-    return menu_markup
 
 
 def reg_end(ch_id):
@@ -106,23 +93,14 @@ def reg_end(ch_id):
         chat_id = ch_id
         bot.send_message(chat_id, "Реєстрацію завершено!")
 
-        time.sleep(1)  # спорно
         bot.send_message(chat_id, "Дивіться меню:", reply_markup=main_menu_markup())
 
     except Exception as e:
         print(e)
 
 
-def hide_markup(chat_id):
-    markup = telebot.types.ReplyKeyboardRemove()
-    bot.send_message(chat_id, "⌨💤...", reply_markup=markup)
-    # return hide_markup
-
-
-@bot.message_handler(commands=['about_me'])
-def about(message):
+def about(chat_id):
     try:
-        chat_id = message.chat.id
         bot.send_message(chat_id, f"<i>Інформація про користувача:</i>\n"
                                   f"<b>Ім'я:</b> {users[chat_id].name}\n"
                                   f"<b>Вік:</b> {users[chat_id].age}\n"
@@ -131,22 +109,12 @@ def about(message):
 
     except Exception as e:
         print(e)
-        bot.reply_to(message, "З вашими данними щось трапилось...")
+        bot.send_message(chat_id, "З вашими данними щось трапилось...")
 
 
-def gen_markup_settings():
-    markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True)
-    markup.row("Змінити ім'я")
-    markup.row("Змінити вік")
-    markup.row("Змінити стать")
-    markup.row("Назад")
-    return markup
-
-
-@bot.message_handler(commands=['settings'])
-def settings(message):
-    chat_id = message.chat.id
-    bot.send_message(chat_id,  "Налаштування:", reply_markup=gen_markup_settings())
+def settings(chat_id):
+    # chat_id = message.chat.id
+    bot.send_message(chat_id,  "Налаштування:", reply_markup=gen_settings_markup())
 
 ########################################################################################################################
 
@@ -155,25 +123,39 @@ def settings(message):
 def repeat_all_messages(message):
     chat_id = message.chat.id
 
-    if message.text == "Змінити ім'я":
-        hide_markup(chat_id)
-        msg = bot.send_message(chat_id, "Введіть нове ім'я:")
-        bot.register_next_step_handler(msg, change_name)
+    if message.text == 'Назад':
+        if users[chat_id].step == 0:
+            bot.send_message(chat_id, "Головне меню:", reply_markup=main_menu_markup())
+        else:
+            bot.send_message(chat_id, "Меню налаштувань:", reply_markup=gen_settings_markup())
+
+    elif message.text == "Змінити ім'я":
+        bot.send_message(chat_id, "Бажаєте змінити ім'я?", reply_markup=change_name_markup())
 
     elif message.text == 'Змінити вік':
-        hide_markup(chat_id)
-        msg = bot.send_message(chat_id, "Введіть новий вік:")
-        bot.register_next_step_handler(msg, change_age)
+        bot.send_message(chat_id, "Бажаєте змінити вік?", reply_markup=change_age_markup())
 
     elif message.text == 'Змінити стать':
-        if users[chat_id].sex:
-            change_sex(chat_id)
-            bot.send_message(chat_id, "Стать змінено!")
-        else:
-            bot.send_message(chat_id, "Стать ще не введена")
+        bot.send_message(chat_id, f"Ваша стать: {users[chat_id].sex}")
+        msg = bot.send_message(chat_id, "Бажаєте змінити стать на протилежну?", reply_markup=change_sex_markup())
+        bot.register_next_step_handler(msg, change_sex)
 
-    elif message.text == 'Назад':
-        bot.send_message(chat_id, "Головне меню:", reply_markup=main_menu_markup())
+    elif message.text == "Так, змінити ім'я":
+        hide_markup()
+        msg = bot.send_message(chat_id, "Введіть нове ім'я:", reply_markup=hide_markup())
+        bot.register_next_step_handler(msg, change_name)
+
+    elif message.text == "Так, змінити вік":
+        hide_markup()
+        msg = bot.send_message(chat_id, "Введіть новий вік:", reply_markup=hide_markup())
+        bot.register_next_step_handler(msg, change_age)
+
+    elif message.text == 'Інформація про мене':
+        about(chat_id)
+
+    elif message.text == 'Налаштування':
+        settings(chat_id)
+
     else:
         bot.send_message(chat_id, "Якщо щось потрібно - використовуйте кнопки")
 
@@ -182,32 +164,47 @@ def change_name(message):
     chat_id = message.chat.id
     user = users[chat_id]
 
-    if check_name(message.text):
-        user.add_name(message.text)
-        bot.send_message(chat_id, "Зареєстровано нове ім'я", reply_markup=gen_markup_settings())
+    if message.text != 'Назад':
+        if check_name(message.text):
+            user.add_name(message.text)
+            bot.send_message(chat_id, "Зареєстровано нове ім'я", reply_markup=gen_settings_markup())
+        else:
+            msg = bot.send_message(chat_id, "Введіть коректні дані")
+            bot.register_next_step_handler(msg, change_name)
     else:
-        msg = bot.send_message(chat_id, "Введіть коректні дані")
-        bot.register_next_step_handler(msg, change_name)
+        bot.send_message(chat_id, "Меню налаштувань:", reply_markup=gen_settings_markup())
 
 
 def change_age(message):
     chat_id = message.chat.id
     user = users[chat_id]
 
-    if check_age(message.text):
-        user.add_age(message.text)
-        bot.send_message(chat_id, "Зареєстровано новий вік", reply_markup=gen_markup_settings())
+    if message.text != 'Назад':
+        if check_age(message.text):
+            user.add_age(message.text)
+            bot.send_message(chat_id, "Зареєстровано новий вік", reply_markup=gen_settings_markup())
+        else:
+            msg = bot.send_message(chat_id, "Введіть коректні дані")
+            bot.register_next_step_handler(msg, change_age)
     else:
-        msg = bot.send_message(chat_id, "Введіть коректні дані")
-        bot.register_next_step_handler(msg, change_age)
+        bot.send_message(chat_id, "Меню налаштувань:", reply_markup=gen_settings_markup())
 
 
-def change_sex(user_id):
-    if users[user_id].sex == 'male':
-        users[user_id].sex = 'female'
+def change_sex(message):
+    chat_id = message.chat.id
+    user = users[chat_id]
 
-    elif users[user_id].sex == 'female':
-        users[user_id].sex = 'male'
+    if message.text != 'Назад':
+
+        if user.sex == 'male':
+            user.sex = 'female'
+
+        elif user.sex == 'female':
+            user.sex = 'male'
+
+        bot.send_message(chat_id, "Стать змінено на протилежну!", reply_markup=gen_settings_markup())
+    else:
+        bot.send_message(chat_id, "Меню налаштувань:", reply_markup=gen_settings_markup())
 
 
 bot.polling(none_stop=True)
